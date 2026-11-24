@@ -29,4 +29,19 @@ class AppDatabase extends _$AppDatabase {
   // Alternativa reactiva (pregunta I5 del PDF).
   Stream<List<TareaRegistro>> observarTareas() =>
       (select(tareas)..orderBy([(t) => OrderingTerm.desc(t.id)])).watch();
+
+  Future<bool> actualizarTitulo(int id, String titulo) async {
+    final filas = await (update(tareas)..where((t) => t.id.equals(id)))
+        .write(TareasCompanion(titulo: Value(titulo)));
+    return filas > 0;
+  }
+
+  Future<bool> cambiarEstado(int id, bool completada) async {
+    final filas = await (update(tareas)..where((t) => t.id.equals(id)))
+        .write(TareasCompanion(completada: Value(completada)));
+    return filas > 0;
+  }
+
+  Future<int> eliminarTarea(int id) =>
+      (delete(tareas)..where((t) => t.id.equals(id))).go();
 }

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../data/app_database.dart';
 import '../models/tarea.dart';
+import '../utils/validacion.dart';
 
 class TareasPage extends StatefulWidget {
   const TareasPage({super.key, required this.database});
@@ -42,33 +43,51 @@ class _TareasPageState extends State<TareasPage> {
   }
 
   Future<void> _agregarTarea() async {
-    final titulo = _tituloController.text.trim();
-    if (titulo.isEmpty) {
-      _mostrarMensaje('Escribe un título para la tarea.');
+    final error = validarTitulo(_tituloController.text);
+    if (error != null) {
+      _mostrarMensaje(error);
       return;
     }
     try {
-      await widget.database.insertarTarea(titulo);
+      await widget.database.insertarTarea(_tituloController.text.trim());
       _tituloController.clear();
     } catch (error) {
       _mostrarMensaje('No se pudo guardar la tarea: $error');
     }
   }
 
-  void _alternarCompletada(Tarea tarea, bool completada) {
-    _pendiente('Implementar actualización de tarea');
+  Future<void> _alternarCompletada(Tarea tarea, bool completada) async {
+    try {
+      await widget.database.cambiarEstado(tarea.id, completada);
+    } catch (error) {
+      _mostrarMensaje('No se pudo actualizar la tarea: $error');
+    }
   }
 
-  void _editarTarea(Tarea tarea) {
-    _pendiente('Implementar edición de título');
+  Future<void> _editarTarea(Tarea tarea) async {
+    final nuevoTitulo = await showDialog<String>(
+      context: context,
+      builder: (_) => _DialogoEditarTarea(tituloInicial: tarea.titulo),
+    );
+    if (nuevoTitulo == null) return; // canceló
+    final error = validarTitulo(nuevoTitulo);
+    if (error != null) {
+      _mostrarMensaje(error);
+      return;
+    }
+    try {
+      await widget.database.actualizarTitulo(tarea.id, nuevoTitulo.trim());
+    } catch (error) {
+      _mostrarMensaje('No se pudo editar la tarea: $error');
+    }
   }
 
-  void _eliminarTarea(Tarea tarea) {
-    _pendiente('Implementar eliminación de tarea');
-  }
-
-  void _pendiente(String mensaje) {
-    _mostrarMensaje(mensaje);
+  Future<void> _eliminarTarea(Tarea tarea) async {
+    try {
+      await widget.database.eliminarTarea(tarea.id);
+    } catch (error) {
+      _mostrarMensaje('No se pudo eliminar la tarea: $error');
+    }
   }
 
   void _mostrarMensaje(String mensaje) {
@@ -152,6 +171,53 @@ class _TareasPageState extends State<TareasPage> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _DialogoEditarTarea extends StatefulWidget {
+  const _DialogoEditarTarea({required this.tituloInicial});
+
+  final String tituloInicial;
+
+  @override
+  State<_DialogoEditarTarea> createState() => _DialogoEditarTareaState();
+}
+
+class _DialogoEditarTareaState extends State<_DialogoEditarTarea> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.tituloInicial);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Editar tarea'),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        decoration: const InputDecoration(labelText: 'Título'),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, _controller.text),
+          child: const Text('Guardar'),
+        ),
+      ],
     );
   }
 }
