@@ -1,10 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import '../data/app_database.dart';
 import '../models/tarea.dart';
 
-// Pantalla base SIN persistencia ni operaciones CRUD implementadas.
-// Conserva las indicaciones TODO para orientar tu trabajo.
 class TareasPage extends StatefulWidget {
-  const TareasPage({super.key});
+  const TareasPage({super.key, required this.database});
+
+  final AppDatabase database;
 
   @override
   State<TareasPage> createState() => _TareasPageState();
@@ -14,15 +17,42 @@ class _TareasPageState extends State<TareasPage> {
   final TextEditingController _tituloController = TextEditingController();
 
   List<Tarea> _tareas = [];
+  StreamSubscription<List<TareaRegistro>>? _suscripcion;
 
   @override
   void initState() {
     super.initState();
-
+    // La base avisa cada vez que cambia la tabla: no se consulta en build().
+    _suscripcion = widget.database.observarTareas().listen(
+      (registros) {
+        setState(() {
+          _tareas = registros
+              .map((r) => Tarea(
+                    id: r.id,
+                    titulo: r.titulo,
+                    completada: r.completada,
+                  ))
+              .toList();
+        });
+      },
+      onError: (Object error) {
+        _mostrarMensaje('No se pudieron cargar las tareas: $error');
+      },
+    );
   }
 
-  void _agregarTarea() {
-    _pendiente('Implementar registro de tarea');
+  Future<void> _agregarTarea() async {
+    final titulo = _tituloController.text.trim();
+    if (titulo.isEmpty) {
+      _mostrarMensaje('Escribe un título para la tarea.');
+      return;
+    }
+    try {
+      await widget.database.insertarTarea(titulo);
+      _tituloController.clear();
+    } catch (error) {
+      _mostrarMensaje('No se pudo guardar la tarea: $error');
+    }
   }
 
   void _alternarCompletada(Tarea tarea, bool completada) {
@@ -38,6 +68,11 @@ class _TareasPageState extends State<TareasPage> {
   }
 
   void _pendiente(String mensaje) {
+    _mostrarMensaje(mensaje);
+  }
+
+  void _mostrarMensaje(String mensaje) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(mensaje)),
     );
@@ -45,6 +80,7 @@ class _TareasPageState extends State<TareasPage> {
 
   @override
   void dispose() {
+    _suscripcion?.cancel();
     _tituloController.dispose();
     super.dispose();
   }
